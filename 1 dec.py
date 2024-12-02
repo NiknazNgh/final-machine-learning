@@ -1,5 +1,5 @@
 #%%
-# import pandas as pd
+import pandas as pd
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -18,7 +18,7 @@ import joblib
 import xgboost as xgb
 import missingno as msno
 from sklearn.feature_selection import RFE
-
+#%%
 # Load dataset
 df = pd.read_csv('filtered_data.csv')
 print("Initial dataset shape:", df.shape)
@@ -30,16 +30,16 @@ df.info()
 # Visualize Missing Data
 msno.matrix(df)
 plt.show()
-
+#%%
 # Step 2: Drop duplicates
 df = df.drop_duplicates()
 print(f"Shape after removing duplicates: {df.shape}")
-
+#%%
 # Step 3: Handle invalid values (replace negative values with 0)
 numeric_columns = df.select_dtypes(include=['number']).columns
 df[numeric_columns] = df[numeric_columns].mask(df[numeric_columns] < 0, 0)
 print(f"Shape after replacing invalid values: {df.shape}")
-
+#%%
 # Step 4: Advanced Missing Value Imputation
 # Use KNN imputer for numerical columns
 numeric_cols = df.select_dtypes(include=['float64', 'int64']).columns
@@ -53,52 +53,52 @@ df[cat_cols] = cat_imputer.fit_transform(df[cat_cols])
 
 print(f"Shape after imputation: {df.shape}")
 print("Missing values after imputation:", df.isnull().sum())
-
+#%%
 # Step 5: Outlier Detection using Isolation Forest
 outlier_detector = IsolationForest(contamination=0.05)  # Adjust contamination if needed
 outliers = outlier_detector.fit_predict(df[numeric_cols])
 df = df[outliers == 1]  # Keep only the inliers (predicted normal rows)
 print(f"Shape after outlier removal: {df.shape}")
-
+#%%
 # Step 6: Feature Engineering
 df['total_casualties'] = df['nkill'].fillna(0) + df['nwound'].fillna(0)
 df['region_attack_count'] = df.groupby('region')['attacktype1'].transform('count')
-
+#%%
 # Step 7: Encoding categorical variables
 cat_cols = df.select_dtypes(include=['object', 'category']).columns
 for col in cat_cols:
     freq_map = df[col].value_counts() / len(df)
     df[col] = df[col].map(freq_map)
-
+#%%
 # Step 8: Feature Scaling
 scaler = StandardScaler()
 scaled_features = scaler.fit_transform(df.select_dtypes(include=[np.number]))  # Only scale numeric columns
 joblib.dump(scaler, "scaler.pkl")
-
+#%%
 # Step 9: Dimensionality Reduction using PCA
 pca = PCA(n_components=0.95)  # Keep 95% variance
 reduced_data = pca.fit_transform(scaled_features)
 print("Explained variance ratio:", np.cumsum(pca.explained_variance_ratio_)[-1])
-
+#%%
 # Step 10: Correlation Heatmap
 numeric_df = df.select_dtypes(include=[np.number])
 plt.figure(figsize=(12, 8))
 sns.heatmap(numeric_df.corr(), annot=True, cmap='coolwarm', fmt='.2f')
 plt.title("Correlation Heatmap of Features")
 plt.show()
-
+#%%
 # Step 11: Save Processed Data
 output_file_path = 'processed_cleaned_data.csv'
 df.to_csv(output_file_path, index=False)
 print(f"Processed data saved to {output_file_path}")
-
+#%%
 # Step 12: Model Training
 features = ['region', 'attacktype1', 'weaptype1', 'nkill', 'nwound', 'total_casualties']
 X = df[features]
 y = df['success']
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42, stratify=y)
-
+#%%
 # Step 13: Handle Imbalanced Data using SMOTE
 smote = SMOTE(random_state=42)
 X_train_resampled, y_train_resampled = smote.fit_resample(X_train, y_train)
@@ -124,7 +124,7 @@ y_pred_proba_xgb = xgb_model.predict_proba(X_test)[:, 1]
 # Save Models
 joblib.dump(rf, "random_forest_model.pkl")
 joblib.dump(xgb_model, "xgboost_model.pkl")
-
+#%%
 # Step 14: Model Evaluation
 def evaluate_model(y_test, y_pred, y_pred_proba):
     metrics = {
@@ -144,7 +144,7 @@ metrics_xgb = evaluate_model(y_test, y_pred_xgb, y_pred_proba_xgb)
 
 metrics_df = pd.DataFrame([metrics_log_reg, metrics_rf, metrics_xgb], index=['Logistic Regression', 'Random Forest', 'XGBoost'])
 print(metrics_df)
-
+#%%
 # Step 15: Confusion Matrix & ROC Curve
 def plot_confusion_matrix(y_true, y_pred, model_name):
     cm = confusion_matrix(y_true, y_pred)
@@ -170,24 +170,24 @@ plot_roc_curve(y_test, y_pred_proba_rf, "Random Forest")
 
 plot_confusion_matrix(y_test, y_pred_xgb, "XGBoost")
 plot_roc_curve(y_test, y_pred_proba_xgb, "XGBoost")
-
+#%%
 # Step 16: SHAP Analysis for XGBoost
 explainer = shap.Explainer(xgb_model, X_train_resampled)
 shap_values = explainer(X_test)
 shap.summary_plot(shap_values, X_test)
-
+#%%
 # Step 17: Feature Importance - Random Forest
 feature_importances_rf = rf.feature_importances_
 plt.barh(features, feature_importances_rf)
 plt.title("Random Forest Feature Importance")
 plt.show()
-
+#%%
 # Step 18: Recursive Feature Elimination (RFE) for Feature Selection
 rfe = RFE(log_reg, n_features_to_select=5)
 rfe.fit(X_train_resampled, y_train_resampled)
 selected_features = X.columns[rfe.support_]
 print(f"Selected features from RFE: {selected_features}")
-
+#%%
 # Step 19: Hyperparameter Tuning with GridSearchCV
 param_grid = {
     'max_depth': [3, 5, 7, 10],
@@ -200,7 +200,23 @@ grid_search.fit(X_train_resampled, y_train_resampled)
 
 print(f"Best parameters from GridSearchCV: {grid_search.best_params_}")
 print(f"Best AUC from GridSearchCV: {grid_search.best_score_}")
+#%%
+# Additional Visualizations
+# ROC Curve for all models
+plt.figure(figsize=(10, 8))
+fpr_log, tpr_log, _ = roc_curve(y_test, y_pred_proba_log)
+fpr_rf, tpr_rf, _ = roc_curve(y_test, y_pred_proba_rf)
+fpr_xgb, tpr_xgb, _ = roc_curve(y_test, y_pred_proba_xgb)
 
+plt.plot(fpr_log, tpr_log, label=f'Logistic Regression (AUC = {auc(fpr_log, tpr_log):.2f})')
+plt.plot(fpr_rf, tpr_rf, label=f'Random Forest (AUC = {auc(fpr_rf, tpr_rf):.2f})')
+plt.plot(fpr_xgb, tpr_xgb, label=f'XGBoost (AUC = {auc(fpr_xgb, tpr_xgb):.2f})')
+plt.plot([0, 1], [0, 1], linestyle='--')
+plt.title('Comparison of ROC Curves')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.legend()
+plt.show()
 # Conclusion
 print("Model evaluation completed. Final models and results are saved.")
 
